@@ -1,7 +1,7 @@
 resource "aws_iam_role" "ec2" {
   name = "${local.name}-ec2-role"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version   = "2012-10-17"
     Statement = [{ Effect = "Allow", Principal = { Service = "ec2.amazonaws.com" }, Action = "sts:AssumeRole" }]
   })
 }
@@ -45,7 +45,7 @@ resource "aws_launch_template" "app" {
   }))
   tag_specifications {
     resource_type = "instance"
-    tags = { Name = "${local.name}-app", CodeDeploy = local.name }
+    tags          = { Name = "${local.name}-app", CodeDeploy = local.name }
   }
 }
 
@@ -83,13 +83,13 @@ resource "aws_lb_listener" "http" {
 }
 
 resource "aws_autoscaling_group" "app" {
-  name                = "${local.name}-asg"
-  min_size            = 1
-  max_size            = 3
-  desired_capacity    = var.desired_capacity
-  vpc_zone_identifier = aws_subnet.private[*].id
-  target_group_arns   = [aws_lb_target_group.app.arn]
-  health_check_type   = "ELB"
+  name                      = "${local.name}-asg"
+  min_size                  = 1
+  max_size                  = 3
+  desired_capacity          = var.desired_capacity
+  vpc_zone_identifier       = aws_subnet.private[*].id
+  target_group_arns         = [aws_lb_target_group.app.arn]
+  health_check_type         = "ELB"
   health_check_grace_period = 300
   launch_template {
     id      = aws_launch_template.app.id
