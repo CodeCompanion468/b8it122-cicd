@@ -1,0 +1,84 @@
+name: B8IT122 CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: staging-deployment
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-demo-${{ github.sha }}
+          path: dist/pipeline-demo.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  terraform:
+    name: Validate infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - working-directory: infrastructure/terraform
+        run: terraform fmt -check -recursive
+      - working-directory: infrastructure/terraform
+        run: terraform init -backend=false
+      - working-directory: infrastructure/terraform
+        run: terraform validate
+
+  deploy-staging:
+    name: Deploy to staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [quality, terraform]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pipeline-demo-${{ github.sha }}
+          path: dist
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Upload immutable revision
+        run: aws s3 cp dist/pipeline-demo.zip "s3://${{ vars.ARTIFACT_BUCKET }}/revisions/${GITHUB_SHA}.zip"
+      - name: Start CodeDeploy deployment
+        id: deploy
+        run: |
+          deployment_id=$(aws deploy create-deployment \
+            --application-name "${{ vars.CODEDEPLOY_APPLICATION }}" \
+            --deployment-group-name "${{ vars.CODEDEPLOY_GROUP }}" \
+            --description "GitHub ${GITHUB_SHA}" \
+            --s3-location "bucket=${{ vars.ARTIFACT_BUCKET }},key=revisions/${GITHUB_SHA}.zip,bundleType=zip" \
+            --query deploymentId --output text)
+          echo "deployment_id=${deployment_id}" >> "$GITHUB_OUTPUT"
+      - name: Wait for healthy deployment
+        run: aws deploy wait deployment-successful --deployment-id "${{ steps.deploy.outputs.deployment_id }}"
+      - name: Smoke test
+        run: curl --fail --retry 5 --retry-delay 10 "${{ vars.STAGING_URL }}/health"

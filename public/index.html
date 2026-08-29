@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="B8IT122 CI/CD deployment evidence page">
+    <title>B8IT122 Pipeline Demo</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">B8IT122</a>
+      <span class="environment" id="environment">CHECKING</span>
+    </header>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">CI/CD WORKING EXAMPLE</p>
+        <h1>A visible endpoint for every successful release.</h1>
+        <p>This deliberately limited service exists only to demonstrate source control, automated testing, artefact creation, AWS CodeDeploy and post-deployment validation.</p>
+      </section>
+
+      <section class="release" aria-labelledby="release-title">
+        <div>
+          <p class="label">CURRENT REVISION</p>
+          <h2 id="release-title">Loading deployment…</h2>
+          <p id="deployed-at" class="muted"></p>
+          <p id="demo-message" class="demo-message"></p>
+        </div>
+        <div class="status-mark" aria-label="Deployment healthy">✓</div>
+      </section>
+
+      <section class="flow" aria-labelledby="flow-title">
+        <div class="section-heading">
+          <p class="eyebrow">AUTOMATED FLOW</p>
+          <h2 id="flow-title">Commit to verified staging</h2>
+        </div>
+        <ol>
+          <li><span>01</span><strong>Commit</strong><small>Feature branch and pull request</small></li>
+          <li><span>02</span><strong>Check</strong><small>Syntax and automated tests</small></li>
+          <li><span>03</span><strong>Package</strong><small>Immutable ZIP revision</small></li>
+          <li><span>04</span><strong>Deploy</strong><small>AWS CodeDeploy to staging</small></li>
+          <li><span>05</span><strong>Verify</strong><small>Health check and rollback alarm</small></li>
+        </ol>
+      </section>
+    </main>
+    <footer><span id="health">Checking service health…</span><span>Demonstration workload—not a product implementation</span></footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

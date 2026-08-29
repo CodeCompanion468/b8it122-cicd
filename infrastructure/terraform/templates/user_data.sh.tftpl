@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+dnf update -y
+dnf install -y ruby wget nodejs amazon-cloudwatch-agent
+cd /tmp
+wget -q "https://aws-codedeploy-${aws_region}.s3.${aws_region}.amazonaws.com/latest/install" -O install
+chmod +x install
+./install auto
+useradd --system --home-dir /opt/pipeline-demo --shell /sbin/nologin pipeline-demo || true
+install -d -o pipeline-demo -g pipeline-demo /opt/pipeline-demo/current
+cat >/etc/systemd/system/pipeline-demo.service <<'UNIT'
+[Unit]
+Description=B8IT122 pipeline demonstration workload
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pipeline-demo
+Group=pipeline-demo
+WorkingDirectory=/opt/pipeline-demo/current
+Environment=NODE_ENV=production
+Environment=APP_VERSION=${environment}
+Environment=PORT=3000
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/pipeline-demo
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now codedeploy-agent
