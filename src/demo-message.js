@@ -1,2 +1,1 @@
-export const demoMessage = "The CI/CD pipeline deployed this version successfully.";
-
+export const demoMessage = "My final B8IT122 staging update was deployed successfully.";
