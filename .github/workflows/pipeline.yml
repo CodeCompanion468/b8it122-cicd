@@ -53,7 +53,7 @@ jobs:
 
   deploy-staging:
     name: Deploy to staging
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ENABLE_STAGING_DEPLOY == 'true') || github.event_name == 'workflow_dispatch'
     needs: [quality, terraform]
     runs-on: ubuntu-latest
     environment: staging
@@ -68,17 +68,34 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
       - name: Upload immutable revision
         run: aws s3 cp dist/pipeline-demo.zip "s3://${{ vars.ARTIFACT_BUCKET }}/revisions/${GITHUB_SHA}.zip"
-      - name: Start CodeDeploy deployment
+      - name: Deploy through Systems Manager
         id: deploy
         run: |
-          deployment_id=$(aws deploy create-deployment \
-            --application-name "${{ vars.CODEDEPLOY_APPLICATION }}" \
-            --deployment-group-name "${{ vars.CODEDEPLOY_GROUP }}" \
-            --description "GitHub ${GITHUB_SHA}" \
-            --s3-location "bucket=${{ vars.ARTIFACT_BUCKET }},key=revisions/${GITHUB_SHA}.zip,bundleType=zip" \
-            --query deploymentId --output text)
-          echo "deployment_id=${deployment_id}" >> "$GITHUB_OUTPUT"
-      - name: Wait for healthy deployment
-        run: aws deploy wait deployment-successful --deployment-id "${{ steps.deploy.outputs.deployment_id }}"
+          cat > /tmp/ssm-parameters.json <<JSON
+          {
+            "commands": [
+              "set -euo pipefail",
+              "aws s3 cp s3://${{ vars.ARTIFACT_BUCKET }}/revisions/${GITHUB_SHA}.zip /tmp/pipeline-demo.zip",
+              "systemctl stop pipeline-demo.service || true",
+              "install -d -m 0755 -o pipeline-demo -g pipeline-demo /opt/pipeline-demo/current",
+              "find /opt/pipeline-demo/current -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +",
+              "unzip -q -o /tmp/pipeline-demo.zip -d /opt/pipeline-demo/current",
+              "/opt/pipeline-demo/current/deploy/after_install.sh",
+              "/opt/pipeline-demo/current/deploy/start.sh",
+              "/opt/pipeline-demo/current/deploy/validate.sh"
+            ]
+          }
+          JSON
+          command_id=$(aws ssm send-command \
+            --document-name AWS-RunShellScript \
+            --targets "Key=tag:Name,Values=${{ vars.INSTANCE_TAG_NAME }}" \
+            --comment "GitHub ${GITHUB_SHA}" \
+            --parameters file:///tmp/ssm-parameters.json \
+            --query Command.CommandId \
+            --output text)
+          echo "command_id=${command_id}" >> "$GITHUB_OUTPUT"
+          aws ssm wait command-executed \
+            --command-id "$command_id" \
+            --instance-id "$(aws ec2 describe-instances --filters Name=tag:Name,Values=${{ vars.INSTANCE_TAG_NAME }} Name=instance-state-name,Values=running --query 'Reservations[0].Instances[0].InstanceId' --output text)"
       - name: Smoke test
         run: curl --fail --retry 5 --retry-delay 10 "${{ vars.STAGING_URL }}/health"

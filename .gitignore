@@ -6,7 +6,14 @@ dist/
 *.tfstate.*
 *.tfplan
 .terraform.lock.hcl
+terraform.tfvars
 .env
 .DS_Store
 tmp/
-
+docs/architecture-render/
+docs/architecture.png
+docs/architecture.svg
+docs/pages-editable-render/
+docs/report-render*/
+docs/build_report.py
+B8IT122*Report*.docx

@@ -1,5 +1,6 @@
 resource "aws_iam_role" "codedeploy" {
-  name = "${local.name}-codedeploy-role"
+  count = var.enable_codedeploy ? 1 : 0
+  name  = "${local.name}-codedeploy-role"
   assume_role_policy = jsonencode({
     Version   = "2012-10-17"
     Statement = [{ Effect = "Allow", Principal = { Service = "codedeploy.amazonaws.com" }, Action = "sts:AssumeRole" }]
@@ -7,11 +8,13 @@ resource "aws_iam_role" "codedeploy" {
 }
 
 resource "aws_iam_role_policy_attachment" "codedeploy" {
-  role       = aws_iam_role.codedeploy.name
+  count      = var.enable_codedeploy ? 1 : 0
+  role       = aws_iam_role.codedeploy[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole"
 }
 
 resource "aws_codedeploy_app" "app" {
+  count            = var.enable_codedeploy ? 1 : 0
   compute_platform = "Server"
   name             = local.name
 }
@@ -44,9 +47,10 @@ resource "aws_cloudwatch_metric_alarm" "target_health" {
 }
 
 resource "aws_codedeploy_deployment_group" "app" {
-  app_name               = aws_codedeploy_app.app.name
+  count                  = var.enable_codedeploy ? 1 : 0
+  app_name               = aws_codedeploy_app.app[0].name
   deployment_group_name  = "${local.name}-deployment-group"
-  service_role_arn       = aws_iam_role.codedeploy.arn
+  service_role_arn       = aws_iam_role.codedeploy[0].arn
   deployment_config_name = "CodeDeployDefault.OneAtATime"
   autoscaling_groups     = [aws_autoscaling_group.app.name]
   load_balancer_info {
@@ -66,4 +70,3 @@ resource "aws_codedeploy_deployment_group" "app" {
     trigger_target_arn = aws_sns_topic.deployments.arn
   }
 }
-
