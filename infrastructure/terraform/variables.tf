@@ -46,3 +46,9 @@ variable "github_repository" {
   type        = string
   default     = ""
 }
+
+variable "enable_codedeploy" {
+  description = "Create CodeDeploy resources when the AWS account plan supports the service."
+  type        = bool
+  default     = false
+}

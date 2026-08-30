@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 dnf update -y
-dnf install -y ruby wget nodejs amazon-cloudwatch-agent
-cd /tmp
-wget -q "https://aws-codedeploy-${aws_region}.s3.${aws_region}.amazonaws.com/latest/install" -O install
-chmod +x install
-./install auto
+dnf install -y nodejs unzip amazon-cloudwatch-agent
 useradd --system --home-dir /opt/pipeline-demo --shell /sbin/nologin pipeline-demo || true
 install -d -o pipeline-demo -g pipeline-demo /opt/pipeline-demo/current
 cat >/etc/systemd/system/pipeline-demo.service <<'UNIT'
@@ -34,4 +30,3 @@ ReadWritePaths=/opt/pipeline-demo
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-systemctl enable --now codedeploy-agent

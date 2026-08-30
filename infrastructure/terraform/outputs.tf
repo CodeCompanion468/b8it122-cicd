@@ -9,11 +9,11 @@ output "artifact_bucket" {
 }
 
 output "codedeploy_application" {
-  value = aws_codedeploy_app.app.name
+  value = var.enable_codedeploy ? aws_codedeploy_app.app[0].name : null
 }
 
 output "codedeploy_deployment_group" {
-  value = aws_codedeploy_deployment_group.app.deployment_group_name
+  value = var.enable_codedeploy ? aws_codedeploy_deployment_group.app[0].deployment_group_name : null
 }
 
 output "github_actions_role_policy" {
@@ -22,7 +22,8 @@ output "github_actions_role_policy" {
     Version = "2012-10-17"
     Statement = [
       { Effect = "Allow", Action = ["s3:PutObject", "s3:GetObject"], Resource = "${aws_s3_bucket.artifacts.arn}/*" },
-      { Effect = "Allow", Action = ["codedeploy:CreateDeployment", "codedeploy:GetDeployment", "codedeploy:GetDeploymentConfig", "codedeploy:RegisterApplicationRevision"], Resource = "*" }
+      { Effect = "Allow", Action = ["ssm:SendCommand", "ssm:GetCommandInvocation", "ssm:ListCommandInvocations"], Resource = "*" },
+      { Effect = "Allow", Action = ["ec2:DescribeInstances"], Resource = "*" }
     ]
   })
   sensitive = true
@@ -32,4 +33,3 @@ output "github_actions_role_arn" {
   description = "Role ARN to add as the AWS_ROLE_ARN GitHub environment variable."
   value       = var.github_repository == "" ? null : aws_iam_role.github_actions[0].arn
 }
-

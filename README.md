@@ -2,7 +2,7 @@
 
 Individual continuous integration and continuous deployment (CI/CD) project by Diana Thomsen.
 
-This repository demonstrates an AWS-based CI/CD pipeline using GitHub Actions, Terraform and AWS CodeDeploy. It provisions cloud infrastructure, runs automated checks, packages a small demonstration workload and deploys it to a staging environment.
+This repository demonstrates an AWS based CI/CD pipeline using GitHub Actions, Terraform and AWS Systems Manager. It provisions cloud infrastructure, runs automated checks, packages a small demonstration workload and deploys it to a staging environment. An optional CodeDeploy design is retained for accounts that support the service.
 
 The web service is not intended to be a complete product. Its purpose is to provide visible evidence that a source-code change can pass through build, test and deployment stages before appearing in the live staging environment.
 
@@ -13,9 +13,9 @@ The web service is not intended to be a complete product. Its purpose is to prov
 - Use Git feature branches and pull requests.
 - Run syntax checks and automated tests for every pull request.
 - Build an immutable deployment artefact.
-- Deploy approved changes to staging with AWS CodeDeploy.
+- Deploy approved changes to staging with AWS Systems Manager.
 - Validate application health after deployment.
-- Stop failed deployments and automatically restore the last successful revision.
+- Stop a failed deployment and retain earlier artifact versions for manual rollback.
 - Provide centralised monitoring and deployment notifications.
 
 ## Architecture
@@ -26,12 +26,12 @@ flowchart LR
     PR --> CI["GitHub Actions: lint, test and build"]
     CI --> Merge["Reviewed merge to main"]
     Merge --> S3["Versioned artefact in Amazon S3"]
-    S3 --> CD["AWS CodeDeploy"]
+    S3 --> CD["AWS Systems Manager"]
     CD --> EC2["EC2 Auto Scaling Group"]
     ALB["Application Load Balancer"] --> EC2
     EC2 --> Health["Health check and CloudWatch alarm"]
     Health -->|Healthy| Staging["Verified staging release"]
-    Health -->|Failure| Rollback["Automatic rollback"]
+    Health -->|Failure| Rollback["Redeploy an earlier artifact"]
 ```
 
 The Terraform configuration creates two public and two private subnets across two Availability Zones. The load balancer is internet-facing, while the EC2 workload is placed in private subnets and accepts application traffic only from the load balancer. Systems Manager is used for administrative access, so inbound SSH is not required.
@@ -54,7 +54,7 @@ The Terraform configuration creates two public and two private subnets across tw
 
 ## Pipeline behaviour
 
-Pull requests targeting `main` run the quality and infrastructure-validation jobs. A merge or direct push to `main` repeats those checks and, if successful, deploys the resulting revision to the protected `staging` environment.
+Pull requests targeting `main` run the quality and infrastructure-validation jobs. A merge or direct push to `main` repeats those checks. The resulting revision deploys to the protected `staging` environment only when `ENABLE_STAGING_DEPLOY` is set to `true`. The workflow can also be started manually after the paused capacity is restored.
 
 The main stages are:
 
@@ -65,8 +65,8 @@ The main stages are:
 5. Format and validate the Terraform configuration.
 6. Authenticate to AWS using GitHub OpenID Connect (OIDC).
 7. Upload the immutable revision to the versioned S3 bucket.
-8. Create an AWS CodeDeploy deployment.
-9. Wait for CodeDeploy to report success.
+8. Send a deployment command through AWS Systems Manager.
+9. Wait for Systems Manager to report success.
 10. Run a final HTTP health check against staging.
 
 Long-lived AWS access keys are not stored in GitHub. The workflow exchanges GitHub's OIDC token for short-lived AWS credentials scoped to the deployment role.
@@ -116,17 +116,17 @@ After Terraform completes, add the following variables to the GitHub `staging` e
 | `AWS_REGION` | `eu-west-1` or the selected Terraform region |
 | `AWS_ROLE_ARN` | Terraform output `github_actions_role_arn` |
 | `ARTIFACT_BUCKET` | Terraform output `artifact_bucket` |
-| `CODEDEPLOY_APPLICATION` | Terraform output `codedeploy_application` |
-| `CODEDEPLOY_GROUP` | Terraform output `codedeploy_deployment_group` |
+| `INSTANCE_TAG_NAME` | `b8it122-demo-staging-app` |
 | `STAGING_URL` | Terraform output `application_url` |
+| `ENABLE_STAGING_DEPLOY` | Set to `true` only while staging capacity is active |
 
 Configure the `staging` environment with an approval rule if the GitHub plan supports it. This separates successful integration from authorised deployment.
 
 ## Monitoring and rollback
 
-The load balancer checks `/health` on each application instance. CodeDeploy also executes `deploy/validate.sh` before marking the revision successful. A CloudWatch unhealthy-host alarm can stop a deployment, and CodeDeploy is configured to redeploy the last known good revision when a deployment fails or an associated alarm activates.
+The load balancer checks `/health` on each application instance. Systems Manager also executes `deploy/validate.sh` before the workflow marks the revision successful. A CloudWatch unhealthy host alarm sends a notification through Amazon SNS. The artifact bucket retains versioned packages so the workflow can redeploy a previous known good revision when required.
 
-Deployment status is available through AWS CodeDeploy, while detailed service output is available in the instance service journal through Systems Manager. A CloudWatch log group is provisioned for centralised application logging as a documented extension to the demonstration environment.
+Deployment status is available through the GitHub Actions run and Systems Manager command history. Detailed service output is available in the instance service journal through Systems Manager. A CloudWatch log group is provisioned for centralised application logging as a documented extension to the demonstration environment.
 
 ## Cost control and cleanup
 

@@ -137,7 +137,7 @@ resource "aws_security_group" "app" {
 
 resource "aws_s3_bucket" "artifacts" {
   bucket_prefix = "${local.name}-artifacts-"
-  force_destroy = false
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_versioning" "artifacts" {
