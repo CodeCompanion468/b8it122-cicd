@@ -84,5 +84,3 @@ S3 keeps earlier versions of the application packages. If a deployment fails, th
 ## Cost control
 
 This is a temporary staging environment. The Auto Scaling Group can be reduced to zero when the application is not being demonstrated. The NAT Gateway and Application Load Balancer continue to generate charges while they exist, even when the EC2 capacity is zero.
-
-After the final demonstration and evidence collection, the remaining infrastructure can be removed with Terraform.
